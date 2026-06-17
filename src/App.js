@@ -3,18 +3,16 @@ import { Authenticator } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import StockTracker from "./StockTracker";
 
-// Configure Amplify with your Cognito user pool
 Amplify.configure({
   Auth: {
     Cognito: {
-      userPoolId:       process.env.REACT_APP_USER_POOL_ID,
+      userPoolId: process.env.REACT_APP_USER_POOL_ID,
       userPoolClientId: process.env.REACT_APP_USER_POOL_CLIENT_ID,
-      region:           process.env.REACT_APP_AWS_REGION,
+      region: process.env.REACT_APP_AWS_REGION,
     },
   },
 });
 
-// Custom styling to match our dark theme
 const components = {
   Header() {
     return (
@@ -40,8 +38,8 @@ const formFields = {
     password: { placeholder: "Enter your password" },
   },
   signUp: {
-    username:        { placeholder: "Enter your email", label: "Email" },
-    password:        { placeholder: "Create a password" },
+    username: { placeholder: "Enter your email", label: "Email" },
+    password: { placeholder: "Create a password" },
     confirm_password:{ placeholder: "Confirm your password" },
   },
 };
