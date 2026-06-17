@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 
-const FINNHUB_KEY   = process.env.REACT_APP_FINNHUB_KEY;
+const FINNHUB_KEY = process.env.REACT_APP_FINNHUB_KEY;
 const ANTHROPIC_KEY = process.env.REACT_APP_ANTHROPIC_KEY;
-const API_URL       = process.env.REACT_APP_API_URL;
+const API_URL = process.env.REACT_APP_API_URL;
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// Helpers 
 function formatPrice(n) {
+  if (typeof n !== "number" || isNaN(n)) return n;
   return n.toLocaleString("en-US", { style: "currency", currency: "USD" });
 }
 
@@ -16,10 +17,10 @@ function timeAgo(unixTimestamp) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-// ── DynamoDB via API Gateway ───────────────────────────────────────────────
+// DynamoDB 
 async function loadWatchlistFromDB(userId) {
   try {
-    const res  = await fetch(`${API_URL}/watchlist?userId=${encodeURIComponent(userId)}`);
+    const res = await fetch(`${API_URL}/watchlist?userId=${encodeURIComponent(userId)}`);
     const data = await res.json();
     return data.watchlist || [];
   } catch (e) {
@@ -31,9 +32,9 @@ async function loadWatchlistFromDB(userId) {
 async function saveWatchlistToDB(userId, watchlist) {
   try {
     await fetch(`${API_URL}/watchlist`, {
-      method:  "POST",
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
+      body: JSON.stringify({
         userId,
         watchlist: watchlist.map((s) => ({ ticker: s.ticker, name: s.name })),
       }),
@@ -43,24 +44,24 @@ async function saveWatchlistToDB(userId, watchlist) {
   }
 }
 
-// ── Email alert via SNS ────────────────────────────────────────────────────
+// Email alert 
 async function sendEmailAlert(subject, message) {
   try {
     await fetch(`${API_URL}/sendAlert`, {
-      method:  "POST",
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ subject, message }),
+      body: JSON.stringify({ subject, message }),
     });
   } catch (e) {
     console.error("Failed to send email alert:", e);
   }
 }
 
-// ── Search company name OR ticker via Finnhub ──────────────────────────────
+// Search company name 
 async function searchTicker(query) {
   try {
-    const url  = `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${FINNHUB_KEY}`;
-    const res  = await fetch(url);
+    const url = `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${FINNHUB_KEY}`;
+    const res = await fetch(url);
     const data = await res.json();
     const matches = data?.result || [];
     return matches
@@ -73,22 +74,22 @@ async function searchTicker(query) {
   }
 }
 
-// ── AI Sentiment Analysis ──────────────────────────────────────────────────
+// AI Sentiment Analysis 
 async function analyzeHeadline(ticker, headline) {
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Content-Type":      "application/json",
-        "x-api-key":         ANTHROPIC_KEY,
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_KEY,
         "anthropic-version": "2023-06-01",
         "anthropic-dangerous-direct-browser-calls": "true",
       },
       body: JSON.stringify({
-        model:      "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 120,
         messages: [{
-          role:    "user",
+          role: "user",
           content: `You are a stock market analyst. Analyze this news headline for the stock "${ticker}" and respond with ONLY a JSON object in this exact format:
 {"sentiment":"Bullish","confidence":"High","reason":"FDA approval removes regulatory risk and opens $2B market"}
 
@@ -102,8 +103,8 @@ Respond with JSON only, no other text.`,
         }],
       }),
     });
-    const data  = await res.json();
-    const text  = data?.content?.[0]?.text?.trim() || "";
+    const data = await res.json();
+    const text = data?.content?.[0]?.text?.trim() || "";
     const clean = text.replace(/```json|```/g, "").trim();
     return JSON.parse(clean);
   } catch (e) {
@@ -112,19 +113,19 @@ Respond with JSON only, no other text.`,
   }
 }
 
-// ── Fetch price for a known ticker ─────────────────────────────────────────
+// Fetch price for a known ticker 
 async function fetchStockPrice(ticker, name) {
   try {
-    const url  = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_KEY}`;
-    const res  = await fetch(url);
+    const url = `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_KEY}`;
+    const res = await fetch(url);
     const data = await res.json();
-    if (!data || data.c === 0) return null;
+    if (!data || typeof data.c != "number" || data.c === 0) return null;
     return {
       ticker,
-      name:          name || ticker,
-      price:         data.c,
-      change:        data.d,
-      changePercent: data.dp,
+      name: name || ticker,
+      price: data.c,
+      change: typeof data.d === "number" ? data.d : 0,
+      changePercent: typeof data.dp === "number" ? data.dp : 0,
     };
   } catch (e) {
     console.error("Price fetch failed for", ticker, e);
@@ -132,30 +133,30 @@ async function fetchStockPrice(ticker, name) {
   }
 }
 
-// ── Fetch news + AI analysis for a ticker ─────────────────────────────────
+// Fetch news 
 async function fetchNewsForTicker(ticker) {
   try {
-    const to   = new Date();
+    const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - 7);
     const fromStr = from.toISOString().split("T")[0];
-    const toStr   = to.toISOString().split("T")[0];
-    const url  = `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fromStr}&to=${toStr}&token=${FINNHUB_KEY}`;
-    const res  = await fetch(url);
+    const toStr  = to.toISOString().split("T")[0];
+    const url = `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fromStr}&to=${toStr}&token=${FINNHUB_KEY}`;
+    const res = await fetch(url);
     const data = await res.json();
     if (!Array.isArray(data)) return [];
-    const top      = data.slice(0, 2);
+    const top = data.slice(0, 2);
     const analyzed = await Promise.all(
       top.map(async (item) => {
         const ai = await analyzeHeadline(ticker, item.headline);
         return {
           ticker,
-          headline:   item.headline,
-          time:       timeAgo(item.datetime),
-          url:        item.url,
-          sentiment:  ai.sentiment,
+          headline: item.headline,
+          time: timeAgo(item.datetime),
+          url: item.url,
+          sentiment: ai.sentiment,
           confidence: ai.confidence,
-          reason:     ai.reason,
+          reason: ai.reason,
         };
       })
     );
@@ -166,7 +167,7 @@ async function fetchNewsForTicker(ticker) {
   }
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// Sub-components 
 function NotificationBanner({ notifications, onDismiss }) {
   if (!notifications.length) return null;
   return (
@@ -187,11 +188,11 @@ function NotificationBanner({ notifications, onDismiss }) {
 }
 
 function SearchBar({ onAdd, existingTickers }) {
-  const [query,       setQuery]       = useState("");
-  const [results,     setResults]     = useState([]);
-  const [searching,   setSearching]   = useState(false);
-  const [adding,      setAdding]      = useState(null);
-  const [searchError, setSearchError] = useState(null);
+  const [query,setQuery] = useState("");
+  const [results,setResults] = useState([]);
+  const [searching,setSearching] = useState(false);
+  const [adding,setAdding] = useState(null);
+  const [searchError,setSearchError] = useState(null);
 
   const handleSearch = async () => {
     const q = query.trim();
@@ -343,19 +344,19 @@ function LoadingNews() {
   );
 }
 
-// ── Main App ───────────────────────────────────────────────────────────────
+// Main App 
 export default function StockTracker({ user, onSignOut }) {
-  const [watchlist,     setWatchlist]     = useState([]);
-  const [news,          setNews]          = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [activeTab,     setActiveTab]     = useState("watchlist");
-  const [lastUpdated,   setLastUpdated]   = useState(new Date());
-  const [notifCount,    setNotifCount]    = useState(0);
-  const [loadingNews,   setLoadingNews]   = useState(false);
-  const [loadingInit,   setLoadingInit]   = useState(true);
-  const [error,         setError]         = useState(null);
-  const [savedMsg,      setSavedMsg]      = useState(false);
-  const [emailMsg,      setEmailMsg]      = useState(false);
+  const [watchlist,setWatchlist] = useState([]);
+  const [news,setNews] = useState([]);
+  const [notifications,setNotifications] = useState([]);
+  const [activeTab,setActiveTab] = useState("watchlist");
+  const [lastUpdated,setLastUpdated] = useState(new Date());
+  const [notifCount,setNotifCount] = useState(0);
+  const [loadingNews,setLoadingNews] = useState(false);
+  const [loadingInit,setLoadingInit] = useState(true);
+  const [error,setError] = useState(null);
+  const [savedMsg,setSavedMsg] = useState(false);
+  const [emailMsg,setEmailMsg] = useState(false);
 
   const userEmail = user?.signInDetails?.loginId || user?.username || "User";
 
@@ -405,7 +406,7 @@ export default function StockTracker({ user, onSignOut }) {
       });
   }
 
-  // ── On login: load saved watchlist from DynamoDB then fetch prices ────────
+  // On login: load saved watchlist from DynamoDB then fetch prices 
   useEffect(() => {
     async function init() {
       setLoadingInit(true);
@@ -432,7 +433,7 @@ export default function StockTracker({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail]);
 
-  // ── Add stock ─────────────────────────────────────────────────────────────
+  // Add stock 
   const handleAddStock = useCallback(async (ticker, name) => {
     setError(null);
     const stock = await fetchStockPrice(ticker, name);
@@ -462,7 +463,7 @@ export default function StockTracker({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userEmail]);
 
-  // ── Remove stock ──────────────────────────────────────────────────────────
+  // Remove stock 
   const removeStock = useCallback((ticker) => {
     setWatchlist((prev) => {
       const newList = prev.filter((s) => s.ticker !== ticker);
@@ -472,7 +473,7 @@ export default function StockTracker({ user, onSignOut }) {
     setNews((prev) => prev.filter((n) => n.ticker !== ticker));
   }, [userEmail]);
 
-  // ── Refresh prices ────────────────────────────────────────────────────────
+  // Refresh prices 
   const refreshPrices = useCallback(async () => {
     if (!watchlist.length) return;
     setError(null);
@@ -492,7 +493,7 @@ export default function StockTracker({ user, onSignOut }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchlist]);
 
-  // ── Refresh news ──────────────────────────────────────────────────────────
+  // Refresh news 
   const refreshNews = useCallback(async () => {
     if (!watchlist.length) return;
     setLoadingNews(true);
