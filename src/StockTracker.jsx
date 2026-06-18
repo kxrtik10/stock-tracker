@@ -173,10 +173,10 @@ function NotificationBanner({ notifications, onDismiss }) {
   return (
     <div style={{ position: "fixed", top: 20, right: 20, zIndex: 999, display: "flex", flexDirection: "column", gap: 8, maxWidth: 380 }}>
       {notifications.map((n) => (
-        <div key={n.id} className="notif-banner">
+        <div key={n.id} className={`notif-banner ${n.isNegative ? "notif-negative" : ""}`}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
             <div>
-              <span className="notif-ticker">{n.ticker}</span>
+              <span className={`notif-ticker ${n.isNegative ? "notif-ticker-negative" : ""}`}>{n.ticker}</span>
               <span className="notif-text">{n.msg}</span>
             </div>
             <button className="notif-close" onClick={() => onDismiss(n.id)}>✕</button>
@@ -319,7 +319,6 @@ function NewsItem({ item }) {
 function EmptyWatchlist() {
   return (
     <div className="empty-state">
-      <div className="empty-icon">📈</div>
       <div className="empty-title">Your watchlist is empty</div>
       <div className="empty-sub">Search for a company above to get started — try "Apple", "Nvidia", or "Pfizer"</div>
     </div>
@@ -339,7 +338,7 @@ function LoadingNews() {
           <div className="skeleton" style={{ width: "55%", height: 12, borderRadius: 4, marginTop: 8 }} />
         </div>
       ))}
-      <div className="ai-loading-note">🤖 AI is analyzing headlines — this takes ~15 seconds...</div>
+      <div className="ai-loading-note">AI is analyzing headlines — this takes ~15 seconds...</div>
     </div>
   );
 }
@@ -360,10 +359,10 @@ export default function StockTracker({ user, onSignOut }) {
 
   const userEmail = user?.signInDetails?.loginId || user?.username || "User";
 
-  function fireNotification(ticker, msg) {
+  function fireNotification(ticker, msg, isNegative = false) {
     const id = Date.now() + Math.random();
     setNotifCount((c) => c + 1);
-    setNotifications((n) => [...n.slice(-3), { id, ticker, msg }]);
+    setNotifications((n) => [...n.slice(-3), { id, ticker, msg, isNegative }]);
     setTimeout(() => setNotifications((n) => n.filter((x) => x.id !== id)), 7000);
   }
 
@@ -383,7 +382,7 @@ export default function StockTracker({ user, onSignOut }) {
       if (Math.abs(s.changePercent) > 1.5) {
         const dir = s.changePercent > 0 ? "+" : "";
         const pct = s.changePercent.toFixed(2);
-        fireNotification(s.ticker, ` moved ${dir}${pct}% today!`);
+        fireNotification(s.ticker, ` moved ${dir}${pct}% today!`, s.changePercent < 0);
 
         const subject = `📈 ${s.ticker} moved ${dir}${pct}% — StockWatch Alert`;
         const message = `${s.ticker} (${s.name}) just moved ${dir}${pct}% today.\n\nCurrent price: ${formatPrice(s.price)}\nChange: ${dir}${formatPrice(Math.abs(s.change))}\n\n— StockWatch`;
@@ -398,7 +397,7 @@ export default function StockTracker({ user, onSignOut }) {
       .slice(0, 2)
       .forEach((a) => {
         const icon = a.sentiment === "Bullish" ? "📈" : "📉";
-        fireNotification(a.ticker, ` ${icon} ${a.sentiment} — ${a.reason?.slice(0, 55)}...`);
+        fireNotification(a.ticker, ` ${icon} ${a.sentiment} — ${a.reason?.slice(0, 55)}...`, a.sentiment === "Bearish");
 
         const subject = `${icon} ${a.ticker} — ${a.sentiment} signal — StockWatch Alert`;
         const message = `AI Sentiment Alert for ${a.ticker}\n\nSentiment: ${a.sentiment} (${a.confidence} confidence)\n\nHeadline: ${a.headline}\n\nAI reasoning: ${a.reason}\n\nRead more: ${a.url}\n\n— StockWatch`;
@@ -414,14 +413,14 @@ export default function StockTracker({ user, onSignOut }) {
       if (saved.length === 0) { setLoadingInit(false); return; }
 
       const results = await Promise.all(saved.map((s) => fetchStockPrice(s.ticker, s.name)));
-      const valid    = results.filter(Boolean);
+      const valid = results.filter(Boolean);
       setWatchlist(valid);
       checkPriceAlerts(valid);
       setLoadingInit(false);
 
       setLoadingNews(true);
       const allNews = await Promise.all(valid.map((s) => fetchNewsForTicker(s.ticker)));
-      const flat     = allNews.flat().sort((a, b) => {
+      const flat = allNews.flat().sort((a, b) => {
         const order = { Bearish: 0, Bullish: 1, Neutral: 2 };
         return (order[a.sentiment] ?? 2) - (order[b.sentiment] ?? 2);
       });
@@ -616,11 +615,13 @@ export default function StockTracker({ user, onSignOut }) {
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
         .notif-banner { background: #0f1a2e; border: 1px solid #4d7cff; border-left: 4px solid #00e5a0; border-radius: 10px; padding: 12px 14px; animation: slideIn 0.25s ease; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        .notif-banner.notif-negative { border-color: #ff4d6a; border-left-color: #ff4d6a; }
         @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
         .notif-ticker { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: #00e5a0; margin-right: 4px; }
+        .notif-ticker.notif-ticker-negative { color: #ff4d6a; }
         .notif-text { font-size: 12px; color: #9aa3c0; }
         .notif-close { background: none; border: none; color: #4a5068; cursor: pointer; font-size: 11px; flex-shrink: 0; }
-        .notif-close:hover { color: #ff4d6a; }
+        .notif-close:hover { color: #ff4d6a; }  
 
         .empty-state { text-align: center; padding: 80px 20px; }
         .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }

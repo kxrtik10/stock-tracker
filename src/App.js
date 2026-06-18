@@ -17,9 +17,9 @@ const components = {
   Header() {
     return (
       <div style={{
-        textAlign:    "center",
-        padding:      "32px 0 8px",
-        fontFamily:   "'Space Mono', monospace",
+        textAlign: "center",
+        padding: "32px 0 8px",
+        fontFamily: "'Space Mono', monospace",
       }}>
         <div style={{ fontSize: 24, fontWeight: 700, color: "#00e5a0" }}>
           stock<span style={{ color: "#4d7cff" }}>watch</span>
